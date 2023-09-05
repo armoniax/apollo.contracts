@@ -221,13 +221,12 @@ using namespace wasm::safemath;
               
               if(penalty.amount > 0)
                   TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )                  
-          
           }
           
           if (save_acct.last_collected_at == time_point())
               save_acct.last_collected_at = save_acct.created_at;
                   
-          CHECKC( now.sec_since_epoch() - save_acct.last_collected_at.sec_since_epoch() > DAY_SECONDS, err::TIME_PREMATURE, "less than 24 hours since last interest collection time" )
+          // CHECKC( now.sec_since_epoch() - save_acct.last_collected_at.sec_since_epoch() > DAY_SECONDS, err::TIME_PREMATURE, "less than 24 hours since last interest collection time" )
           
           auto total_elapsed_sec  = now.sec_since_epoch() - save_acct.created_at.sec_since_epoch();
           auto interest           = asset( 0, _gstate.interest_token.get_symbol() );
