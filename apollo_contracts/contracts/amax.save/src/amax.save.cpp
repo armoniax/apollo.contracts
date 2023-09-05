@@ -230,15 +230,17 @@ using namespace wasm::safemath;
               CHECKC( !premature_withdraw, err::NO_AUTH, "premature withdraw not allowed" )
 
           if (premature_withdraw) {
-              auto unfinish_rate      = div( save_termed_at.sec_since_epoch() - now.sec_since_epoch(), plan.conf.deposit_term_days * DAY_SECONDS, PCT_BOOST );
-              auto penalty_amount     = mul_up( mul_up( save_acct.deposit_quant.amount, unfinish_rate, PCT_BOOST ), plan.conf.advance_redeem_fine_rate, PCT_BOOST );
-              auto penalty            = asset( penalty_amount, _gstate.principal_token.get_symbol() );
-              
-              redeem_quant            -= penalty;
-              CHECKC( redeem_quant.amount > 0, err::INCORRECT_AMOUNT, "redeem amount not positive " )
-              
-              if(penalty.amount > 0)
-                  TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )
+              if (plan.conf.advance_redeem_fine_rate > 0) {
+                  auto unfinish_rate      = div( save_termed_at.sec_since_epoch() - now.sec_since_epoch(), plan.conf.deposit_term_days * DAY_SECONDS, PCT_BOOST );
+                  auto penalty_amount     = mul_up( mul_up( save_acct.deposit_quant.amount, unfinish_rate, PCT_BOOST ), plan.conf.advance_redeem_fine_rate, PCT_BOOST );
+                  auto penalty            = asset( penalty_amount, _gstate.principal_token.get_symbol() );
+                  
+                  redeem_quant            -= penalty;
+                  CHECKC( redeem_quant.amount > 0, err::INCORRECT_AMOUNT, "redeem amount not positive " )
+                  
+                  if(penalty.amount > 0)
+                      TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )                  
+              }
               
               if (save_acct.last_collected_at == time_point())
                   save_acct.last_collected_at = save_acct.created_at;
