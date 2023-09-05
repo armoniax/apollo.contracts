@@ -211,40 +211,39 @@ using namespace wasm::safemath;
           if (!plan.conf.allow_advance_redeem)
               CHECKC( !premature_withdraw, err::NO_AUTH, "premature withdraw not allowed" )
 
-          if (premature_withdraw) {
-              if (plan.conf.advance_redeem_fine_rate > 0) {
-                  auto unfinish_rate      = div( save_termed_at.sec_since_epoch() - now.sec_since_epoch(), plan.conf.deposit_term_days * DAY_SECONDS, PCT_BOOST );
-                  auto penalty_amount     = mul_up( mul_up( save_acct.deposit_quant.amount, unfinish_rate, PCT_BOOST ), plan.conf.advance_redeem_fine_rate, PCT_BOOST );
-                  auto penalty            = asset( penalty_amount, _gstate.principal_token.get_symbol() );
-                  
-                  redeem_quant            -= penalty;
-                  CHECKC( redeem_quant.amount > 0, err::INCORRECT_AMOUNT, "redeem amount not positive " )
-                  
-                  if(penalty.amount > 0)
-                      TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )                  
-              }
+          if (premature_withdraw && plan.conf.advance_redeem_fine_rate > 0) {
+              auto unfinish_rate      = div( save_termed_at.sec_since_epoch() - now.sec_since_epoch(), plan.conf.deposit_term_days * DAY_SECONDS, PCT_BOOST );
+              auto penalty_amount     = mul_up( mul_up( save_acct.deposit_quant.amount, unfinish_rate, PCT_BOOST ), plan.conf.advance_redeem_fine_rate, PCT_BOOST );
+              auto penalty            = asset( penalty_amount, _gstate.principal_token.get_symbol() );
               
-              if (save_acct.last_collected_at == time_point())
-                  save_acct.last_collected_at = save_acct.created_at;
-                  
-              CHECKC( now.sec_since_epoch() - save_acct.last_collected_at.sec_since_epoch() > DAY_SECONDS, err::TIME_PREMATURE, "less than 24 hours since last interest collection time" )
+              redeem_quant            -= penalty;
+              CHECKC( redeem_quant.amount > 0, err::INCORRECT_AMOUNT, "redeem amount not positive " )
               
-              auto total_elapsed_sec  = now.sec_since_epoch() - save_acct.created_at.sec_since_epoch();
-              auto interest           = asset( 0, _gstate.interest_token.get_symbol() );
-              _term_interest(save_acct.interest_rate, save_acct.deposit_quant, total_elapsed_sec, YEAR_DAYS * DAY_SECONDS, interest );
-              if (interest > save_acct.interest_term_quant) 
-                  interest = save_acct.interest_term_quant;
+              if(penalty.amount > 0)
+                  TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )                  
+          
+          }
+          
+          if (save_acct.last_collected_at == time_point())
+              save_acct.last_collected_at = save_acct.created_at;
+                  
+          CHECKC( now.sec_since_epoch() - save_acct.last_collected_at.sec_since_epoch() > DAY_SECONDS, err::TIME_PREMATURE, "less than 24 hours since last interest collection time" )
+          
+          auto total_elapsed_sec  = now.sec_since_epoch() - save_acct.created_at.sec_since_epoch();
+          auto interest           = asset( 0, _gstate.interest_token.get_symbol() );
+          _term_interest(save_acct.interest_rate, save_acct.deposit_quant, total_elapsed_sec, YEAR_DAYS * DAY_SECONDS, interest );
+          if (interest > save_acct.interest_term_quant) 
+              interest = save_acct.interest_term_quant;
 
-              auto interest_due       = interest - save_acct.interest_collected;
-              if (interest_due.amount > 0) {
-                  CHECKC( plan.interest_available > interest_due, err::NOT_POSITIVE, "insufficient available interest to collect" )
-                  TRANSFER( _gstate.interest_token.get_contract(), owner, interest_due, "interest: " + to_string(save_id) )
+          auto interest_due       = interest - save_acct.interest_collected;
+          if (interest_due.amount > 0) {
+              CHECKC( plan.interest_available > interest_due, err::NOT_POSITIVE, "insufficient available interest to collect" )
+              TRANSFER( _gstate.interest_token.get_contract(), owner, interest_due, "interest: " + to_string(save_id) )
 
-                  plan.interest_available       -= interest_due;
-                  plan.interest_redeemed        += interest_due;
+              plan.interest_available       -= interest_due;
+              plan.interest_redeemed        += interest_due;
 
-                  _int_coll_log(owner, save_acct.save_id, plan.id, interest_due,  time_point_sec( current_time_point() ));  
-              }
+              _int_coll_log(owner, save_acct.save_id, plan.id, interest_due,  time_point_sec( current_time_point() ));  
           }
       }
 
