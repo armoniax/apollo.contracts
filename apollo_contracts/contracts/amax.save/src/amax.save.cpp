@@ -97,24 +97,6 @@ using namespace wasm::safemath;
       CHECK(false, "disabled" )
       require_auth( _self );
       
-      // auto old_save                 = save_account_t( 363 );
-      // auto old_acct                 = "aplxzxnb3he5"_n;
-      // auto new_acct                 = "apl3dnfgkzay"_n;
-      // _db.get( old_acct.value, old_save );
-      // auto tmp = old_save;
-      // _db.del( old_acct.value, old_save );
-
-      // auto new_save                 = save_account_t( 363 );
-      // new_save.plan_id              = tmp.plan_id;
-      // new_save.interest_rate        = tmp.interest_rate; 
-      // new_save.deposit_quant        = tmp.deposit_quant;
-      // new_save.interest_term_quant  = tmp.interest_term_quant; 
-      // new_save.interest_collected   = tmp.interest_collected;
-      // new_save.created_at           = tmp.created_at;
-      // new_save.term_ended_at        = tmp.term_ended_at;
-
-      // _db.set( new_acct.value, new_save, false );
-      
       // _gstate.principal_token       = ptoken;
       // _gstate.interest_token        = itoken;
       // _gstate.admin                 = admin;
@@ -254,15 +236,15 @@ using namespace wasm::safemath;
                   interest = save_acct.interest_term_quant;
 
               auto interest_due       = interest - save_acct.interest_collected;
+              if (interest_due.amount > 0) {
+                  CHECKC( plan.interest_available > interest_due, err::NOT_POSITIVE, "insufficient available interest to collect" )
+                  TRANSFER( _gstate.interest_token.get_contract(), owner, interest_due, "interest: " + to_string(save_id) )
 
-              CHECKC( interest_due.amount > 0, err::NOT_POSITIVE, "interest due amount is zero" )
-              CHECKC( plan.interest_available > interest_due, err::NOT_POSITIVE, "insufficient available interest to collect" )
-              TRANSFER( _gstate.interest_token.get_contract(), owner, interest_due, "interest: " + to_string(save_id) )
+                  plan.interest_available       -= interest_due;
+                  plan.interest_redeemed        += interest_due;
 
-              plan.interest_available       -= interest_due;
-              plan.interest_redeemed        += interest_due;
-
-              _int_coll_log(owner, save_acct.save_id, plan.id, interest_due,  time_point_sec( current_time_point() ));    
+                  _int_coll_log(owner, save_acct.save_id, plan.id, interest_due,  time_point_sec( current_time_point() ));  
+              }
           }
       }
 
