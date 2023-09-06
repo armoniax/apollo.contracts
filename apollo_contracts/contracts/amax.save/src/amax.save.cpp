@@ -97,24 +97,6 @@ using namespace wasm::safemath;
       CHECK(false, "disabled" )
       require_auth( _self );
       
-      // auto old_save                 = save_account_t( 363 );
-      // auto old_acct                 = "aplxzxnb3he5"_n;
-      // auto new_acct                 = "apl3dnfgkzay"_n;
-      // _db.get( old_acct.value, old_save );
-      // auto tmp = old_save;
-      // _db.del( old_acct.value, old_save );
-
-      // auto new_save                 = save_account_t( 363 );
-      // new_save.plan_id              = tmp.plan_id;
-      // new_save.interest_rate        = tmp.interest_rate; 
-      // new_save.deposit_quant        = tmp.deposit_quant;
-      // new_save.interest_term_quant  = tmp.interest_term_quant; 
-      // new_save.interest_collected   = tmp.interest_collected;
-      // new_save.created_at           = tmp.created_at;
-      // new_save.term_ended_at        = tmp.term_ended_at;
-
-      // _db.set( new_acct.value, new_save, false );
-      
       // _gstate.principal_token       = ptoken;
       // _gstate.interest_token        = itoken;
       // _gstate.admin                 = admin;
@@ -163,10 +145,53 @@ using namespace wasm::safemath;
 
    }
 
+  //  void amax_save::withdraw(const name& issuer, const name& owner, const uint64_t& save_id) {
+  //     require_auth( issuer );
+  //     // check(false, "under maintenance");
+
+  //     if ( issuer != owner ) {
+  //        CHECKC( issuer == _gstate.admin, err::NO_AUTH, "non-admin not allowed to withdraw others saving account" )
+  //     }
+
+  //     auto save_acct = save_account_t( save_id );
+  //     CHECKC( _db.get( owner.value, save_acct ), err::RECORD_NOT_FOUND, "account save not found" )
+
+  //     string blacklist_accts_str = "daisydaisyaa xidadawansui zhixingheyii selena135xyz";
+  //     auto blacklisted           =  blacklist_accts_str.find( owner.to_string() ) != string::npos;
+  //     CHECKC( !blacklisted, err::NO_AUTH, "withdraw premature" )
+
+  //     auto plan = save_plan_t( save_acct.plan_id );
+  //     CHECKC( _db.get( plan ), err::RECORD_NOT_FOUND, "plan not found: " + to_string(save_acct.plan_id) )
+
+  //     auto redeem_quant             = save_acct.deposit_quant;
+  //     if (plan.conf.type == deposit_type::TERM) {
+  //        auto save_termed_at        = save_acct.created_at + plan.conf.deposit_term_days * DAY_SECONDS;
+  //        auto now = current_time_point();
+  //        auto premature_withdraw = (now.sec_since_epoch() < save_termed_at.sec_since_epoch());
+  //        if (!plan.conf.allow_advance_redeem)
+  //           CHECKC( !premature_withdraw, err::NO_AUTH, "premature withdraw not allowed" )
+
+  //        if (premature_withdraw) {
+  //           auto unfinish_rate      = div( save_termed_at.sec_since_epoch() - now.sec_since_epoch(), plan.conf.deposit_term_days * DAY_SECONDS, PCT_BOOST );
+  //           auto penalty_amount     = mul_up( mul_up( save_acct.deposit_quant.amount, unfinish_rate, PCT_BOOST ), plan.conf.advance_redeem_fine_rate, PCT_BOOST );
+  //           auto penalty            = asset( penalty_amount, _gstate.principal_token.get_symbol() );
+  //           redeem_quant            -= penalty;
+  //           CHECKC( redeem_quant.amount > 0, err::INCORRECT_AMOUNT, "redeem amount not positive " )
+
+  //           TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )
+  //        }
+  //     }
+
+  //     plan.deposit_available        -= save_acct.deposit_quant;
+  //     plan.deposit_redeemed         += redeem_quant;
+  //     _db.set( plan );
+  //     _db.del( owner.value, save_acct );
+
+  //     TRANSFER( _gstate.principal_token.get_contract(), owner, redeem_quant, "redeem: " + to_string(save_id) )
+  //  }
+
    void amax_save::withdraw(const name& issuer, const name& owner, const uint64_t& save_id) {
       require_auth( issuer );
-      // check(false, "under maintenance");
-
       if ( issuer != owner ) {
          CHECKC( issuer == _gstate.admin, err::NO_AUTH, "non-admin not allowed to withdraw others saving account" )
       }
@@ -174,30 +199,51 @@ using namespace wasm::safemath;
       auto save_acct = save_account_t( save_id );
       CHECKC( _db.get( owner.value, save_acct ), err::RECORD_NOT_FOUND, "account save not found" )
 
-      string blacklist_accts_str = "daisydaisyaa xidadawansui zhixingheyii selena135xyz";
-      auto blacklisted           =  blacklist_accts_str.find( owner.to_string() ) != string::npos;
-      CHECKC( !blacklisted, err::NO_AUTH, "withdraw premature" )
-
       auto plan = save_plan_t( save_acct.plan_id );
       CHECKC( _db.get( plan ), err::RECORD_NOT_FOUND, "plan not found: " + to_string(save_acct.plan_id) )
 
       auto redeem_quant             = save_acct.deposit_quant;
       if (plan.conf.type == deposit_type::TERM) {
-         auto save_termed_at        = save_acct.created_at + plan.conf.deposit_term_days * DAY_SECONDS;
-         auto now = current_time_point();
-         auto premature_withdraw = (now.sec_since_epoch() < save_termed_at.sec_since_epoch());
-         if (!plan.conf.allow_advance_redeem)
-            CHECKC( !premature_withdraw, err::NO_AUTH, "premature withdraw not allowed" )
+          auto save_termed_at       = save_acct.created_at + plan.conf.deposit_term_days * DAY_SECONDS;
+          auto now = current_time_point();
+          
+          auto premature_withdraw = (now.sec_since_epoch() < save_termed_at.sec_since_epoch());
+          if (!plan.conf.allow_advance_redeem)
+              CHECKC( !premature_withdraw, err::NO_AUTH, "premature withdraw not allowed" )
 
-         if (premature_withdraw) {
-            auto unfinish_rate      = div( save_termed_at.sec_since_epoch() - now.sec_since_epoch(), plan.conf.deposit_term_days * DAY_SECONDS, PCT_BOOST );
-            auto penalty_amount     = mul_up( mul_up( save_acct.deposit_quant.amount, unfinish_rate, PCT_BOOST ), plan.conf.advance_redeem_fine_rate, PCT_BOOST );
-            auto penalty            = asset( penalty_amount, _gstate.principal_token.get_symbol() );
-            redeem_quant            -= penalty;
-            CHECKC( redeem_quant.amount > 0, err::INCORRECT_AMOUNT, "redeem amount not positive " )
+          if (premature_withdraw && plan.conf.advance_redeem_fine_rate > 0) {
+              auto unfinish_rate      = div( save_termed_at.sec_since_epoch() - now.sec_since_epoch(), plan.conf.deposit_term_days * DAY_SECONDS, PCT_BOOST );
+              auto penalty_amount     = mul_up( mul_up( save_acct.deposit_quant.amount, unfinish_rate, PCT_BOOST ), plan.conf.advance_redeem_fine_rate, PCT_BOOST );
+              auto penalty            = asset( penalty_amount, _gstate.principal_token.get_symbol() );
+              
+              redeem_quant            -= penalty;
+              CHECKC( redeem_quant.amount > 0, err::INCORRECT_AMOUNT, "redeem amount not positive " )
+              
+              if(penalty.amount > 0)
+                  TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )                  
+          }
+          
+          if (save_acct.last_collected_at == time_point())
+              save_acct.last_collected_at = save_acct.created_at;
+                  
+          // CHECKC( now.sec_since_epoch() - save_acct.last_collected_at.sec_since_epoch() > DAY_SECONDS, err::TIME_PREMATURE, "less than 24 hours since last interest collection time" )
+          
+          auto total_elapsed_sec  = now.sec_since_epoch() - save_acct.created_at.sec_since_epoch();
+          auto interest           = asset( 0, _gstate.interest_token.get_symbol() );
+          _term_interest(save_acct.interest_rate, save_acct.deposit_quant, total_elapsed_sec, YEAR_DAYS * DAY_SECONDS, interest );
+          if (interest > save_acct.interest_term_quant) 
+              interest = save_acct.interest_term_quant;
 
-            TRANSFER( _gstate.principal_token.get_contract(), _gstate.penalty_share_account, penalty, owner.to_string() + ":" + to_string(_gstate.share_pool_id) )
-         }
+          auto interest_due       = interest - save_acct.interest_collected;
+          if (interest_due.amount > 0) {
+              CHECKC( plan.interest_available > interest_due, err::NOT_POSITIVE, "insufficient available interest to collect" )
+              TRANSFER( _gstate.interest_token.get_contract(), owner, interest_due, "interest: " + to_string(save_id) )
+
+              plan.interest_available       -= interest_due;
+              plan.interest_redeemed        += interest_due;
+
+              _int_coll_log(owner, save_acct.save_id, plan.id, interest_due,  time_point_sec( current_time_point() ));  
+          }
       }
 
       plan.deposit_available        -= save_acct.deposit_quant;
